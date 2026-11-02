@@ -372,7 +372,7 @@
     sign.rotation.y = -0.6;
     group.add(sign);
 
-    return { group, houses, radius: R, plaza: new THREE.Vector3(0, 2, 0), sign, levels: LEVELS };
+    return { group, houses, radius: R, plaza: new THREE.Vector3(0, 2, 0), pier: new THREE.Vector3(3.5, 1, pz + 5), sign, levels: LEVELS };
   }
 
   root.OstrovIsland = { build, plotCell, look, LEVELS, FEATURES, PLOT };
