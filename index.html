@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="island.js"></script>
+  <script src="island.js?v=2"></script>
   <style>
     :root {
       --panel: rgba(13, 24, 38, 0.92);
@@ -202,7 +202,11 @@
         const fromHash = norm(decodeURIComponent(location.hash.slice(1)));
         if (fromHash) find(fromHash);
       })
-      .catch(() => { $("loading").textContent = "Не удалось загрузить остров 😕 Обнови страницу"; });
+      .catch((e) => {
+        console.error(e);
+        const el = $("loading");
+        if (el) el.textContent = "Не удалось загрузить остров 😕 Обнови страницу";
+      });
 
     // ── camera flights
     let flight = null;
@@ -326,10 +330,10 @@
       const day = dayOf(r.since);
       sheet.innerHTML = `<div class="top"><div><div class="nick">@${esc(h.nick)}</div><span class="badge">ЖИТЕЛЬ №${h.no}</span></div><button class="x" data-close>×</button></div>
         <div class="fields">
-          <div><span>Район</span><span>${district(h.ring)}</span></div>
+          <div><span>Район</span><span>${district(h.ring || 0)}</span></div>
           <div><span>Заселился</span><span>${day ? "день " + day : "—"}</span></div>
           <div><span>Дом</span><span>${lv.emoji} ${lv.name}</span></div>
-          <div><span>Во дворе</span><span>${h.features.join(" · ") || "—"}</span></div>
+          <div><span>Во дворе</span><span>${(h.features || []).join(" · ") || "—"}</span></div>
         </div>
         <div class="actions">
           <button class="btn yellow" id="share">↗ Поделиться</button>
@@ -337,7 +341,7 @@
         </div>
         <a class="btn dark full" href="${BOT}" target="_blank" rel="noopener">⬆️ Прокачать дом в Telegram</a>`;
       $("share").onclick = () => shareLink(h);
-      $("pass").onclick = () => openPassport(h, district(h.ring), day);
+      $("pass").onclick = () => openPassport(h, district(h.ring || 0), day);
     }
     sheet.addEventListener("click", (e) => {
       if (!e.target.closest("[data-close]")) return;
