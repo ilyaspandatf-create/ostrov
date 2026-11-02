@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="island.js?v=2"></script>
+  <script src="island.js?v=3"></script>
   <style>
     :root {
       --panel: rgba(13, 24, 38, 0.92);
@@ -81,6 +81,33 @@
     .modal h2 { font-size: 18px; font-weight: 900; margin-bottom: 10px; }
     .modal ol { margin: 6px 0 0 20px; display: grid; gap: 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
 
+    .banner { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; font-size: 13px; font-weight: 700; }
+    .banner span { flex: 1; line-height: 1.3; }
+    .banner .fold { border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; width: 24px; }
+    .banner .go { background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 900; padding: 10px 16px; border-radius: 12px; white-space: nowrap; }
+    .banner.folded span, .banner.folded .go { display: none; }
+    .banner.folded { width: 44px; padding: 6px; }
+    .banner.folded .fold { transform: rotate(-90deg); }
+    .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .tool { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; color: var(--text); font: 800 13px "Montserrat", sans-serif; cursor: pointer; }
+    .tool span { font-size: 18px; }
+    .tool:active { transform: scale(0.97); }
+
+    .drawer { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(560px, calc(100% - 20px)); max-height: 60vh; overflow: auto; z-index: 6; padding: 16px; display: none; }
+    .dtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .dtop h2 { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; }
+    .tour { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: rgba(255, 255, 255, 0.06); color: var(--text); padding: 12px; border-radius: 14px; margin-bottom: 8px; cursor: pointer; text-align: left; font-family: inherit; }
+    .tour:hover { background: rgba(255, 255, 255, 0.1); }
+    .tour .em { font-size: 26px; width: 34px; text-align: center; }
+    .tour b { display: block; font-size: 15px; font-weight: 800; }
+    .tour small { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .gday { font-size: 30px; font-weight: 900; color: var(--accent); }
+    .gsub { color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 2px; }
+    .grow { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+    .play { width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: var(--text); font-size: 16px; cursor: pointer; flex: none; }
+    .grow input { flex: 1; accent-color: var(--accent); height: 28px; }
+    .gticks { display: flex; justify-content: space-between; margin: 4px 0 0 62px; color: var(--muted); font-size: 12px; font-weight: 700; }
+
     #loading { position: fixed; inset: 0; display: grid; place-items: center; font-weight: 900; font-size: 18px; z-index: 20; background: var(--sky); color: #0b3954; }
   </style>
 </head>
@@ -103,7 +130,33 @@
       </div>
       <div class="progress"><div class="bar"><i id="bar"></i></div><span id="goal">…</span></div>
     </div>
+    <div class="panel banner" id="banner">
+      <button class="fold" id="fold" aria-label="Свернуть">⌄</button>
+      <span>🗳 Голосование за название острова и что построим завтра — в Telegram</span>
+      <a class="go" href="https://t.me/ostrov_podpischikov_bot" target="_blank" rel="noopener">Перейти</a>
+    </div>
+    <div class="tools">
+      <button class="panel tool" id="tTours"><span>📍</span>Экскурсии</button>
+      <button class="panel tool" id="tGrowth"><span>📈</span>Было — стало</button>
+      <button class="panel tool" id="tRandom"><span>🎲</span>Случайный сосед</button>
+    </div>
   </header>
+
+  <div class="panel drawer" id="tours">
+    <div class="dtop"><h2>ЭКСКУРСИИ</h2><button class="x" data-shut="tours">×</button></div>
+    <div id="tourList"></div>
+  </div>
+
+  <div class="panel drawer" id="growth">
+    <div class="dtop"><h2>БЫЛО — СТАЛО</h2><button class="x" data-shut="growth">×</button></div>
+    <div class="gday">День <span id="gDay">1</span></div>
+    <div class="gsub">Жителей: <span id="gCount">1</span> · <span id="gWhen">сегодня</span></div>
+    <div class="grow">
+      <button class="play" id="gPlay" aria-label="Проиграть">▶</button>
+      <input type="range" id="gRange" min="1" max="1" value="1" step="1" />
+    </div>
+    <div class="gticks" id="gTicks"></div>
+  </div>
 
   <div id="sheet" class="panel" role="dialog" aria-live="polite"></div>
 
@@ -179,12 +232,19 @@
 
     // ── data and island
     let island, residents = [];
+    function showIsland(list) {
+      if (island) {
+        scene.remove(island.group);
+        island.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+      }
+      island = OstrovIsland.build(THREE, list);
+      scene.add(island.group);
+    }
     fetch("data/residents.json?v=" + Math.floor(Date.now() / 60000))
       .then((r) => r.json())
       .then((data) => {
         residents = data.residents || data;
-        island = OstrovIsland.build(THREE, residents);
-        scene.add(island.group);
+        showIsland(residents);
         const total = residents.length + 1;
         $("count").textContent = fmt(total);
         $("day").textContent = dayOf(new Date().toISOString());
@@ -199,8 +259,8 @@
         scene.fog = new THREE.Fog("#a8e0f8", R * 3, R * 7);
         flyTo(new THREE.Vector3(0, 2, 0), new THREE.Vector3(R * 0.9, R * 0.95 + 10, R * 1.25), 0);
         $("loading").remove();
-        const fromHash = norm(decodeURIComponent(location.hash.slice(1)));
-        if (fromHash) find(fromHash);
+        const fromLink = norm(new URLSearchParams(location.search).get("nick") || decodeURIComponent(location.hash.slice(1)));
+        if (fromLink) find(fromLink);
       })
       .catch((e) => {
         console.error(e);
@@ -309,6 +369,9 @@
       if (!nick) return;
       sug.style.display = "none";
       q.blur();
+      // searching always shows today's island, even from the before/after view
+      if (island && island.houses.size !== residents.length) { $("growth").style.display = "none"; stopGrowth(true); }
+      $("tours").style.display = "none";
       const h = island && island.houses.get(nick);
       sheet.style.display = "block";
       if (!h) {
@@ -358,6 +421,89 @@
       if (navigator.share) navigator.share({ title: "Остров подписчиков", text, url }).catch(() => {});
       else navigator.clipboard.writeText(url).then(() => { $("share").textContent = "✓ Ссылка скопирована"; }, () => prompt("Ссылка на твой дом:", url));
     }
+
+    // ── drawers: tours and growth (one open at a time, the resident sheet closes)
+    function openDrawer(id) {
+      ["tours", "growth"].forEach((d) => ($(d).style.display = d === id ? "block" : "none"));
+      sheet.style.display = "none";
+    }
+    document.querySelectorAll("[data-shut]").forEach((b) => (b.onclick = () => {
+      $(b.dataset.shut).style.display = "none";
+      if (b.dataset.shut === "growth") stopGrowth(true);
+    }));
+    $("fold").onclick = () => $("banner").classList.toggle("folded");
+
+    // ── excursions: places on the island the camera flies to
+    function tours() {
+      const list = [...island.houses.values()];
+      const wished = list.filter((h) => h.wished);
+      const top = list.slice().sort((a, b) => b.level - a.level || a.no - b.no)[0];
+      const newest = list.slice().sort((a, b) => b.no - a.no)[0];
+      const V = (x, y, z) => new THREE.Vector3(x, y, z);
+      const items = [
+        ["🔥", "Центральная площадь", "Костёр, табличка и шалаш основателя", () => flyTo(V(0, 2.5, 0), V(7, 9, 10))],
+        ["🌴", "Пальмовый квартал", "Первые жители острова", () => { const h = island.houses.get(residents[0] && residents[0].nick); if (h) find(h.nick); }],
+        ["⚓", "Причал", "Лодка и вид на океан", () => flyTo(island.pier, island.pier.clone().add(V(-9, 7, 11)))],
+      ];
+      if (wished.length) items.push(["🚩", "Исполненные желания", `${wished.length} ${plural(wished.length, "дом", "дома", "домов")} по просьбам из комментов`, () => find(wished[Math.floor(Math.random() * wished.length)].nick)]);
+      if (top && top.level > 1) items.push([OstrovIsland.LEVELS[top.level - 1].emoji, "Лучший дом острова", "@" + top.nick + " · " + OstrovIsland.LEVELS[top.level - 1].name, () => find(top.nick)]);
+      if (newest) items.push(["🏗", "Новые земли", "Здесь строятся самые свежие дома", () => find(newest.nick)]);
+      items.push(["🏝", "Весь остров", "Вид сверху", () => { const R = island.radius; flyTo(V(0, 2, 0), V(R * 0.9, R * 0.95 + 10, R * 1.25)); }]);
+      const box = $("tourList");
+      box.innerHTML = "";
+      items.forEach(([em, title, sub, go]) => {
+        const b = document.createElement("button");
+        b.className = "tour";
+        b.innerHTML = `<span class="em">${em}</span><span><b>${esc(title)}</b><small>${esc(sub)}</small></span>`;
+        b.onclick = () => { $("tours").style.display = "none"; go(); };
+        box.appendChild(b);
+      });
+    }
+    const plural = (n, a, b, c) => (n % 10 === 1 && n % 100 !== 11 ? a : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? b : c);
+    $("tTours").onclick = () => { tours(); openDrawer("tours"); };
+
+    // ── before / after: rebuild the island as it was on day N
+    // the last day is today, or later if a resident's date is ahead of this viewer's clock
+    const today = () => Math.max(dayOf(new Date().toISOString()), ...residents.map((r) => dayOf(r.since) || 1));
+    let growthTimer = null;
+    function setDay(d) {
+      const list = residents.filter((r) => (dayOf(r.since) || 1) <= d);
+      $("gDay").textContent = d;
+      $("gCount").textContent = fmt(list.length + 1);
+      $("gWhen").textContent = d === today() ? "сегодня" : "день " + d;
+      $("gRange").value = d;
+      selected = null; marker.visible = false;
+      showIsland(list);
+    }
+    function stopGrowth(restore) {
+      clearInterval(growthTimer); growthTimer = null; $("gPlay").textContent = "▶";
+      if (restore) showIsland(residents);
+    }
+    $("tGrowth").onclick = () => {
+      const t = today();
+      $("gRange").max = t;
+      $("gTicks").innerHTML = Array.from({ length: Math.min(t, 7) }, (_, i) => `<span>${Math.round(1 + (i * (t - 1)) / Math.max(1, Math.min(t, 7) - 1))}</span>`).join("");
+      openDrawer("growth");
+      setDay(t);
+    };
+    $("gRange").oninput = (e) => { stopGrowth(false); setDay(+e.target.value); };
+    $("gPlay").onclick = () => {
+      if (growthTimer) { stopGrowth(false); return; }
+      const t = +$("gRange").max;
+      let d = 1;
+      $("gPlay").textContent = "❚❚";
+      setDay(d);
+      growthTimer = setInterval(() => { d += 1; if (d > t) { stopGrowth(false); return; } setDay(d); }, 1200);
+    };
+
+    // ── random neighbour
+    $("tRandom").onclick = () => {
+      if (!residents.length) return;
+      ["tours", "growth"].forEach((d) => ($(d).style.display = "none"));
+      stopGrowth(false);
+      if (island.houses.size !== residents.length) showIsland(residents);
+      find(residents[Math.floor(Math.random() * residents.length)].nick);
+    };
 
     // ── lost modal
     $("lost").onclick = () => ($("lostModal").style.display = "flex");
