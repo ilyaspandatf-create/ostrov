@@ -240,7 +240,12 @@
       island = OstrovIsland.build(THREE, list);
       scene.add(island.group);
     }
-    fetch("data/residents.json?v=" + Math.floor(Date.now() / 60000))
+    // on pages.dev the residents come from the GitHub Pages mirror, which the scheduler updates every 15 minutes;
+    // the Cloudflare copy is only rebuilt when the site code changes
+    const DATA_URL = location.hostname.endsWith(".pages.dev")
+      ? "https://ilyaspandatf-create.github.io/ostrov/data/residents.json"
+      : "data/residents.json";
+    fetch(DATA_URL + "?v=" + Math.floor(Date.now() / 60000))
       .then((r) => r.json())
       .then((data) => {
         residents = data.residents || data;
